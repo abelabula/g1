@@ -1,0 +1,122 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <string.h>
+
+#define BUFFER_SIZE 256
+
+int main() {
+    // File descriptors for the pipeeeeeee
+    int fd[2];
+
+    // Buffer for message passing
+    char buffer[BUFFER_SIZE];
+
+    printf("=== Parent Process ===\n");
+
+    // Create pipe
+    if (pipe(fd) == -1) {
+        perror("Pipe creation failed");
+        exit(EXIT_FAILURE);
+    }
+
+    // Fork first child
+    pid_t first_child_pid = fork();
+
+    if (first_child_pid == -1) {
+        perror("First fork failed");
+        exit(EXIT_FAILURE);
+    } else if (first_child_pid == 0) {
+        // Inside first child process
+        close(fd[0]); // Close unused read end of the pipe
+
+        // Prompt user to input message
+        printf("Enter a message to send to the second child: ");
+        fgets(buffer, BUFFER_SIZE, stdin);
+
+        // Send message to second child
+        if (write(fd[1], buffer, strlen(buffer) + 1) == -1) {
+            perror("Write to pipe failed");
+            exit(EXIT_FAILURE);
+        }
+
+        // Close write end of the pipe
+        close(fd[1]);
+
+        exit(EXIT_SUCCESS);
+    } else {
+        // Inside parent process
+        printf("First child process created with PID: %d\n", first_child_pid);
+
+        // Fork second child
+        pid_t second_child_pid = fork();
+
+        if (second_child_pid == -1) {
+            perror("Second fork failed");
+            exit(EXIT_FAILURE);
+        } else if (second_child_pid == 0) {
+            // Inside second child process
+            close(fd[1]); // Close unused write end of the pipe
+
+            // Read message from first child
+            if (read(fd[0], buffer, BUFFER_SIZE) == -1) {
+                perror("Read from pipe failed");
+                exit(EXIT_FAILURE);
+            }
+            printf("Second child received message: %s\n", buffer);
+
+            // Process the message (count characters and reverse string)
+            int char_count = strlen(buffer);
+            printf("Character count: %d\n", char_count);
+
+            // Reverse the string
+            int i, j;
+            char temp;
+            for (i = 0, j = strlen(buffer) - 1; i < j; i++, j--) {
+                temp = buffer[i];
+                buffer[i] = buffer[j];
+                buffer[j] = temp;
+            }
+
+            printf("Reversed message: %s\n", buffer);
+
+            // Send response to first child
+            char *response = "Message processed successfully!";
+            if (write(fd[1], response, strlen(response) + 1) == -1) {
+                perror("Write to pipe failed");
+                exit(EXIT_FAILURE);
+            }
+
+            // Close read end of the pipe
+            close(fd[0]);
+
+            exit(EXIT_SUCCESS);
+        } else {
+            // Inside parent process
+            printf("Second child process created with PID: %d\n", second_child_pid);
+
+            close(fd[0]); // Close read end of the pipe
+            close(fd[1]); // Close write end of the pipe
+
+            // Wait for the second child to complete
+            if (waitpid(second_child_pid, NULL, 0) == -1) {
+                perror("Waitpid failed");
+                exit(EXIT_FAILURE);
+            }
+            printf("Parent process received response from second child.\n");
+
+            // Wait for both children to complete
+            if (wait(NULL) == -1 || wait(NULL) == -1) {
+                perror("Wait failed");
+                exit(EXIT_FAILURE);
+            }
+
+            printf("Parent process exiting.\n");
+            exit(EXIT_SUCCESS);
+        }
+    }
+
+    return 0;
+}
