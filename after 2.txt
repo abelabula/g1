@@ -1,6 +1,1 @@
 after is creating
-<<<<<<< HEAD
-after is not merging
-=======
-after is mereging
->>>>>>> 2a9f13cb5b2563eea684b58a75862d5f9c8fd295
